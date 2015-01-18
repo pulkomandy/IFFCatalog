@@ -18,11 +18,9 @@ namespace BPrivate {
 
 class AmigaCatalog : public HashMapCatalog {
 	public:
-		AmigaCatalog(const char *signature, const char *language,
+		AmigaCatalog(const entry_ref &owner, const char *language,
 			uint32 fingerprint);
 				// constructor for normal use
-		AmigaCatalog(entry_ref *appOrAddOnRef);
-				// constructor for embedded catalog
 		AmigaCatalog(const char *path, const char *signature,
 			const char *language);
 				// constructor for editor-app
@@ -33,7 +31,7 @@ class AmigaCatalog : public HashMapCatalog {
 		status_t ReadFromFile(const char *path = NULL);
 		status_t WriteToFile(const char *path = NULL);
 
-		static BCatalogData *Instantiate(const char *signature,
+		static BCatalogData *Instantiate(const entry_ref &signature,
 			const char *language, uint32 fingerprint);
 
 		static const char *kCatMimeType;

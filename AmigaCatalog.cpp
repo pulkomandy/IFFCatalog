@@ -14,12 +14,14 @@
 #include <File.h>
 #include <FindDirectory.h>
 #include <fs_attr.h>
+#include <Language.h>
 #include <Mime.h>
 #include <Path.h>
 #include <Resources.h>
 #include <Roster.h>
 #include <StackOrHeapArray.h>
 #include <String.h>
+#include <UTF8.h>
 
 #include <LocaleRoster.h>
 #include <Catalog.h>
@@ -58,24 +60,29 @@ static int16 kCatArchiveVersion = 1;
  * InitCheck() will be B_OK if catalog could be loaded successfully, it will
  * give an appropriate error-code otherwise.
  */
-AmigaCatalog::AmigaCatalog(const char *signature, const char *language,
+AmigaCatalog::AmigaCatalog(const entry_ref& owner, const char *language,
 	uint32 fingerprint)
 	:
-	HashMapCatalog(signature, language, fingerprint)
+	HashMapCatalog("", language, fingerprint)
 {
+	// This catalog uses the executable name to identify the catalog
+	// (not the MIME signature)
+	BEntry entry(&owner);
+	char buffer[256];
+	entry.GetName(buffer);
+	fSignature = buffer;
+
+	// This catalog uses the translated language name to identify the catalog
+	// (not the ISO language code)
+	BLanguage lang(language);
+	lang.GetNativeName(fLanguageName);
+
 	// give highest priority to catalog living in sub-folder of app's folder:
-	app_info appInfo;
-	be_app->GetAppInfo(&appInfo);
-	node_ref nref;
-	nref.device = appInfo.ref.device;
-	nref.node = appInfo.ref.directory;
-	BDirectory appDir(&nref);
 	BString catalogName(kCatFolder);
 	catalogName << fLanguageName
 		<< "/" << fSignature
 		<< kCatExtension;
-	BPath catalogPath(&appDir, catalogName.String());
-	status_t status = ReadFromFile(catalogPath.Path());
+	status_t status = ReadFromFile(catalogName.String());
 
 	if (status != B_OK) {
 		// look in common-etc folder (/boot/home/config/etc):
@@ -83,7 +90,7 @@ AmigaCatalog::AmigaCatalog(const char *signature, const char *language,
 		find_directory(B_USER_ETC_DIRECTORY, &commonEtcPath);
 		if (commonEtcPath.InitCheck() == B_OK) {
 			catalogName = BString(commonEtcPath.Path())
-							<< kCatFolder << fLanguageName
+							<< "/" << kCatFolder << fLanguageName
 							<< "/" << fSignature
 							<< kCatExtension;
 			status = ReadFromFile(catalogName.String());
@@ -96,7 +103,7 @@ AmigaCatalog::AmigaCatalog(const char *signature, const char *language,
 		find_directory(B_SYSTEM_ETC_DIRECTORY, &systemEtcPath);
 		if (systemEtcPath.InitCheck() == B_OK) {
 			catalogName = BString(systemEtcPath.Path())
-							<< kCatFolder << fLanguageName
+							<< "/" << kCatFolder << fLanguageName
 							<< "/" << fSignature
 							<< kCatExtension;
 			status = ReadFromFile(catalogName.String());
@@ -193,7 +200,14 @@ AmigaCatalog::ReadFromFile(const char *path)
 					char strVal[strLen];
 					strings.Read(strVal, strLen);
 
-					SetString(strID, strVal);
+					char outVal[1024];
+					int32 outLen = 1024;
+					int32 cookie = 0;
+
+					convert_to_utf8(B_ISO1_CONVERSION, strVal, &strLen,
+						outVal, &outLen, &cookie);
+
+					SetString(strID, outVal);
 				}
 				break;
 			}
@@ -265,11 +279,11 @@ AmigaCatalog::UpdateAttributes(const char* path)
 
 
 BCatalogData *
-AmigaCatalog::Instantiate(const char *signature, const char *language,
+AmigaCatalog::Instantiate(const entry_ref &owner, const char *language,
 	uint32 fingerprint)
 {
 	AmigaCatalog *catalog
-		= new(std::nothrow) AmigaCatalog(signature, language, fingerprint);
+		= new(std::nothrow) AmigaCatalog(owner, language, fingerprint);
 	if (catalog && catalog->InitCheck() != B_OK) {
 		delete catalog;
 		return NULL;
@@ -278,17 +292,14 @@ AmigaCatalog::Instantiate(const char *signature, const char *language,
 }
 
 
+// #pragma mark -
+
+
 extern "C" BCatalogData *
-instantiate_catalog(const char *signature, const char *language,
+instantiate_catalog(const entry_ref &owner, const char *language,
 	uint32 fingerprint)
 {
-	AmigaCatalog *catalog
-		= new(std::nothrow) AmigaCatalog(signature, language, fingerprint);
-	if (catalog && catalog->InitCheck() != B_OK) {
-		delete catalog;
-		return NULL;
-	}
-	return catalog;
+	return AmigaCatalog::Instantiate(owner, language, fingerprint);
 }
 
 
