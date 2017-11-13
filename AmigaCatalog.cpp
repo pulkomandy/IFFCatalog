@@ -186,7 +186,6 @@ AmigaCatalog::ReadFromFile(const char *path)
 			{
 				BMemoryIO strings(chunkData, chunkSize);
 				int32 strID, strLen;
-				puts("");
 
 				while (strings.Position() < chunkSize) {
 					strings.Read(&strID, sizeof(strID));
@@ -197,8 +196,16 @@ AmigaCatalog::ReadFromFile(const char *path)
 						strLen &= ~3;
 						strLen += 4;
 					}
-					char strVal[strLen];
-					strings.Read(strVal, strLen);
+					char strBase[strLen];
+					char* strVal = strBase;
+					strings.Read(strBase, strLen);
+
+					if (strBase[1] == 0)
+					{
+						// Skip the \0 marker for menu entries…
+						strLen -= 2;
+						strVal += 2;
+					}
 
 					char outVal[1024];
 					int32 outLen = 1024;
@@ -207,7 +214,12 @@ AmigaCatalog::ReadFromFile(const char *path)
 					convert_to_utf8(B_ISO1_CONVERSION, strVal, &strLen,
 						outVal, &outLen, &cookie);
 
-					SetString(strID, outVal);
+					// If the UTF-8 version is shorter, it's likely that
+					// something went wrong. Keep the original string.
+					if (outLen > strLen)
+						SetString(strID, outVal);
+					else
+						SetString(strID, strVal);
 				}
 				break;
 			}
