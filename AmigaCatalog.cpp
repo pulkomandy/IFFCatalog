@@ -1,5 +1,5 @@
 /*
-** Copyright 2009-2015 Adrien Destugues, pulkomandy@pulkomandy.tk.
+** Copyright 2009-2019 Adrien Destugues, pulkomandy@pulkomandy.tk.
 ** Distributed under the terms of the MIT License.
 */
 
@@ -8,6 +8,8 @@
 #include <iostream>
 #include <memory>
 #include <new>
+
+#include <arpa/inet.h>
 
 #include <Application.h>
 #include <Directory.h>
