@@ -1,5 +1,5 @@
 /*
-** Copyright 2009-2019 Adrien Destugues, pulkomandy@pulkomandy.tk.
+** Copyright 2009-2020 Adrien Destugues, pulkomandy@pulkomandy.tk.
 ** Distributed under the terms of the MIT License.
 */
 
@@ -10,6 +10,7 @@
 #include <new>
 
 #include <arpa/inet.h>
+#include <libgen.h>
 
 #include <Application.h>
 #include <Directory.h>
@@ -70,7 +71,7 @@ AmigaCatalog::AmigaCatalog(const entry_ref& owner, const char *language,
 	// This catalog uses the executable name to identify the catalog
 	// (not the MIME signature)
 	BEntry entry(&owner);
-	char buffer[256];
+	char buffer[PATH_MAX];
 	entry.GetName(buffer);
 	fSignature = buffer;
 
@@ -84,18 +85,23 @@ AmigaCatalog::AmigaCatalog(const entry_ref& owner, const char *language,
 	catalogName << fLanguageName
 		<< "/" << fSignature
 		<< kCatExtension;
-	status_t status = ReadFromFile(catalogName.String());
+
+	image_info info;
+	int32 cookie = 0;
+	status_t r = get_next_image_info(B_CURRENT_TEAM, &cookie, &info);
+	BString dirName(dirname(info.name));
+	dirName << "/" << catalogName;
+
+	status_t status = ReadFromFile(dirName.String());
 
 	if (status != B_OK) {
 		// look in common-etc folder (/boot/home/config/etc):
 		BPath commonEtcPath;
 		find_directory(B_USER_ETC_DIRECTORY, &commonEtcPath);
 		if (commonEtcPath.InitCheck() == B_OK) {
-			catalogName = BString(commonEtcPath.Path())
-							<< "/" << kCatFolder << fLanguageName
-							<< "/" << fSignature
-							<< kCatExtension;
-			status = ReadFromFile(catalogName.String());
+			dirName = BString(commonEtcPath.Path())
+							<< "/" << catalogName;
+			status = ReadFromFile(dirName.String());
 		}
 	}
 
@@ -104,11 +110,9 @@ AmigaCatalog::AmigaCatalog(const entry_ref& owner, const char *language,
 		BPath systemEtcPath;
 		find_directory(B_SYSTEM_ETC_DIRECTORY, &systemEtcPath);
 		if (systemEtcPath.InitCheck() == B_OK) {
-			catalogName = BString(systemEtcPath.Path())
-							<< "/" << kCatFolder << fLanguageName
-							<< "/" << fSignature
-							<< kCatExtension;
-			status = ReadFromFile(catalogName.String());
+			dirName = BString(systemEtcPath.Path())
+							<< "/" << catalogName;
+			status = ReadFromFile(dirName.String());
 		}
 	}
 
